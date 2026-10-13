@@ -77,3 +77,12 @@ pub extend CycleDamage with ToJson::{to_json}
 
 ///|
 pub extend DamageResult with ToJson::{to_json}
+
+///|
+pub(all) struct StressSample {
+  time_s : Double
+  stress_mpa : Double
+} derive(ToJson)
+
+///|
+pub extend StressSample with ToJson::{to_json}

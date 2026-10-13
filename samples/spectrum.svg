@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 410" role="img" aria-labelledby="title desc">
+<title id="title">Rainflow stress range spectrum</title><desc id="desc">Sparse bins, range in MPa, cycle counts including half cycles. Damage uses unbinned cycles.</desc>
+<rect width="780" height="410" fill="#f7f8fa"/><g font-family="sans-serif" fill="#263449"><text x="60" y="32" font-size="22">fatigue-spectrum · rainflow cycles</text><text x="60" y="53" font-size="12">Range bins, not stress amplitudes; counts include half cycles</text>
+<path d="M70 85V310H700" fill="none" stroke="#758299"/><text x="70" y="76" font-size="12">Cycle count; scale maximum 1</text>
+<rect x="90" y="100" width="226.20000000000002" height="210" fill="#2563eb"><title>(10, 20] MPa: 1 cycles</title></rect>
+<text x="90" y="92" font-size="12">1</text><text x="90" y="333" font-size="12">20</text>
+<rect x="380" y="100" width="226.20000000000002" height="210" fill="#2563eb"><title>(30, 40] MPa: 1 cycles</title></rect>
+<text x="380" y="92" font-size="12">1</text><text x="380" y="333" font-size="12">40</text>
+<text x="245" y="367" font-size="13">Occupied bin upper range (MPa)</text><text x="60" y="394" font-size="12">Mean stress is retained in cycle data. No mean-stress correction is applied.</text></g></svg>

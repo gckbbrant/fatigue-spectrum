@@ -1,0 +1,15 @@
+{
+  "command": "python scripts/compare_rainflow.py --cases 500 --seed 20261013",
+  "reference": "rainflow==3.2.0",
+  "python": "3.8.7",
+  "moon": "moon 0.1.20260920 (914d7da 2026-09-20)",
+  "seed": 20261013,
+  "fixed_signals": 12,
+  "random_signals": 500,
+  "compared_cycle_records": 13377,
+  "mismatches": 0,
+  "max_absolute_numeric_difference": 0.0,
+  "relative_tolerance": 1e-12,
+  "absolute_tolerance": 1e-10,
+  "intentional_endpoint_policy": "two distinct samples form a half cycle; zero-range cycles are omitted"
+}

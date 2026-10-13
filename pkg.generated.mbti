@@ -11,7 +11,13 @@ pub fn build_spectrum(ArrayView[Cycle], Double) -> Result[Array[SpectrumBin], Fa
 
 pub fn calculate_damage(ArrayView[Cycle], ArrayView[SNPoint]) -> Result[DamageResult, FatigueError]
 
+pub fn cycles_csv(ArrayView[Cycle]) -> Result[String, FatigueError]
+
 pub fn extract_cycles(ArrayView[Double]) -> Result[Array[Cycle], FatigueError]
+
+pub fn parse_stress_csv(StringView) -> Result[Array[StressSample], FatigueError]
+
+pub fn render_spectrum_svg(ArrayView[SpectrumBin]) -> Result[String, FatigueError]
 
 // Errors
 
@@ -66,6 +72,12 @@ pub(all) struct SpectrumBin {
   count : Double
 } derive(ToJson)
 pub fn SpectrumBin::to_json(Self) -> Json
+
+pub(all) struct StressSample {
+  time_s : Double
+  stress_mpa : Double
+} derive(ToJson)
+pub fn StressSample::to_json(Self) -> Json
 
 // Type aliases
 

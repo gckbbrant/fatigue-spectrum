@@ -1,0 +1,65 @@
+{
+  "input_file": "samples/outside.csv",
+  "input_samples": 3,
+  "cycles": [
+    {
+      "range_mpa": 250,
+      "mean_mpa": 125,
+      "count": 0.5,
+      "start_index": 0,
+      "end_index": 1
+    },
+    {
+      "range_mpa": 250,
+      "mean_mpa": 125,
+      "count": 0.5,
+      "start_index": 1,
+      "end_index": 2
+    }
+  ],
+  "spectrum": [
+    {
+      "lower_range_mpa": 240,
+      "upper_range_mpa": 250,
+      "count": 1
+    }
+  ],
+  "bin_width_mpa": 10,
+  "sn_curve": [
+    {
+      "amplitude_mpa": 1,
+      "cycles_to_failure": 10000000000
+    },
+    {
+      "amplitude_mpa": 10,
+      "cycles_to_failure": 1000000
+    },
+    {
+      "amplitude_mpa": 100,
+      "cycles_to_failure": 100
+    }
+  ],
+  "damage": {
+    "evaluated_damage": 0,
+    "out_of_range_cycles": [
+      0,
+      1
+    ],
+    "mean_stress_model": "none",
+    "contributions": [
+      {
+        "cycle_index": 0,
+        "amplitude_mpa": 125,
+        "mean_mpa": 125,
+        "count": 0.5
+      },
+      {
+        "cycle_index": 1,
+        "amplitude_mpa": 125,
+        "mean_mpa": 125,
+        "count": 0.5
+      }
+    ]
+  },
+  "mean_stress_model": "none"
+}
