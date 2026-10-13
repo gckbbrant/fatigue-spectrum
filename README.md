@@ -9,6 +9,7 @@
 在项目目录运行：
 
 ```sh
+moon update
 moon run --target native cmd/main -- analyze samples/stress.csv --sn samples/sn.json --bin-width 10 --json _build/analysis.json --cycles _build/cycles.csv --svg _build/spectrum.svg
 ```
 
