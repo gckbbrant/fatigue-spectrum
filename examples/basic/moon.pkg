@@ -1,0 +1,7 @@
+import {
+  "gckbbrant/fatigue-spectrum" @fatigue,
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "+native+js"
