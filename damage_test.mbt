@@ -62,3 +62,23 @@ test "close S-N amplitudes retain a usable log interval" {
     d.is_close(0.001, relative_tolerance=1.0e-10),
   )
 }
+
+///|
+test "wide cycle-count ratios use the original positive values" {
+  let c : @app.Cycle = {
+    range_mpa: 20.0,
+    mean_mpa: 0.0,
+    count: 1.0,
+    start_index: 0,
+    end_index: 1,
+  }
+  let report = @app.calculate_damage([c], [
+    { amplitude_mpa: 1.0, cycles_to_failure: 1.0e15, },
+    { amplitude_mpa: 100.0, cycles_to_failure: 1.0, },
+  ]).unwrap()
+  let expected = 1.0 / 1.0e15.sqrt()
+  assert_true(
+    report.total_damage is Some(d) &&
+    d.is_close(expected, relative_tolerance=1.0e-10, absolute_tolerance=1.0e-20),
+  )
+}

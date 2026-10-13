@@ -32,8 +32,9 @@ fn validate_sn(curve : ArrayView[SNPoint]) -> Result[Unit, FatigueError] {
 ///|
 fn log_ratio(value : Double, base : Double) -> Double {
   let relative = (value - base) / base
-  // log1p preserves adjacent amplitudes. The fallback covers extreme ratios.
-  if finite(relative) && relative > -1.0 {
+  // log1p preserves adjacent values. For wide ratios, subtraction from 1
+  // loses the smaller value; log(value)-log(base) retains it instead.
+  if finite(relative) && relative.abs() < 0.5 {
     @math.ln_1p(relative)
   } else {
     @math.ln(value) - @math.ln(base)
