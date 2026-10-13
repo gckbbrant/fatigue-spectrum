@@ -35,9 +35,10 @@ def main():
         raise RuntimeError("reference must be rainflow 3.2.0")
     root = Path(__file__).resolve().parents[1]
     subprocess.run(["moon", "build", "--target", "native"], cwd=root, check=True)
-    executable = root / "_build/native/debug/build/cmd/main/main"
-    if platform.system() == "Windows":
-        executable = executable.with_suffix(".exe")
+    base = root / "_build/native/debug/build/cmd/main/main"
+    executable = next((p for p in (base.with_suffix(".exe"), base) if p.is_file()), None)
+    if executable is None:
+        raise FileNotFoundError("moon build produced no native CLI at " + str(base))
     fixed = [
         [0], [1, 1], [1, 2], [2, 1], [1, 1, 1], [0, 1, 2],
         [0, 3, 1, 4, 0], [0, 3, 3, 1, 4, 0], [0, 0, 3, 0, 0],

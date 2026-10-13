@@ -1,6 +1,5 @@
 """Native CLI tests for cycles, model coverage, units and file handling."""
 import json
-import platform
 import subprocess
 import tempfile
 import unittest
@@ -13,9 +12,10 @@ class SpectrumCLI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         subprocess.run(["moon", "build", "--target", "native"], cwd=ROOT, check=True)
-        cls.binary = ROOT / "_build/native/debug/build/cmd/main/main"
-        if platform.system() == "Windows":
-            cls.binary = cls.binary.with_suffix(".exe")
+        base = ROOT / "_build/native/debug/build/cmd/main/main"
+        cls.binary = next((p for p in (base.with_suffix(".exe"), base) if p.is_file()), None)
+        if cls.binary is None:
+            raise FileNotFoundError("moon build produced no native CLI at " + str(base))
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="spectrum-cli-", dir=ROOT / "_build")
