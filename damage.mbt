@@ -30,6 +30,17 @@ fn validate_sn(curve : ArrayView[SNPoint]) -> Result[Unit, FatigueError] {
 }
 
 ///|
+fn log_ratio(value : Double, base : Double) -> Double {
+  let relative = (value - base) / base
+  // log1p preserves adjacent amplitudes. The fallback covers extreme ratios.
+  if finite(relative) && relative > -1.0 {
+    @math.ln_1p(relative)
+  } else {
+    @math.ln(value) - @math.ln(base)
+  }
+}
+
+///|
 fn allowable_cycles(amplitude : Double, curve : ArrayView[SNPoint]) -> Double? {
   if amplitude < curve[0].amplitude_mpa ||
     amplitude > curve[curve.length() - 1].amplitude_mpa {
@@ -41,16 +52,12 @@ fn allowable_cycles(amplitude : Double, curve : ArrayView[SNPoint]) -> Double? {
     }
     if amplitude < point.amplitude_mpa {
       let previous = curve[i - 1]
-      let t = (@math.ln(amplitude) - @math.ln(previous.amplitude_mpa)) /
-        (@math.ln(point.amplitude_mpa) - @math.ln(previous.amplitude_mpa))
+      let t = log_ratio(amplitude, previous.amplitude_mpa) /
+        log_ratio(point.amplitude_mpa, previous.amplitude_mpa)
       return Some(
         @math.exp(
           @math.ln(previous.cycles_to_failure) +
-          t *
-          (
-            @math.ln(point.cycles_to_failure) -
-            @math.ln(previous.cycles_to_failure)
-          ),
+          t * log_ratio(point.cycles_to_failure, previous.cycles_to_failure),
         ),
       )
     }

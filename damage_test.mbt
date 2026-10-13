@@ -40,3 +40,25 @@ test "curve endpoints accepted; outside coverage is explicitly incomplete" {
     is Err(_),
   )
 }
+
+///|
+test "close S-N amplitudes retain a usable log interval" {
+  let a = 10000000000.0
+  let b = a + 0.000004
+  let midpoint = a + 0.000002
+  let c : @app.Cycle = {
+    range_mpa: 2.0 * midpoint,
+    mean_mpa: 0.0,
+    count: 1.0,
+    start_index: 0,
+    end_index: 1,
+  }
+  let report = @app.calculate_damage([c], [
+    { amplitude_mpa: a, cycles_to_failure: 10000.0, },
+    { amplitude_mpa: b, cycles_to_failure: 100.0, },
+  ]).unwrap()
+  assert_true(
+    report.total_damage is Some(d) &&
+    d.is_close(0.001, relative_tolerance=1.0e-10),
+  )
+}
