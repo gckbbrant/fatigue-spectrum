@@ -1,0 +1,42 @@
+///|
+fn curve() -> Array[@app.SNPoint] {
+  [
+    { amplitude_mpa: 1.0, cycles_to_failure: 10000.0, },
+    { amplitude_mpa: 10.0, cycles_to_failure: 100.0, },
+  ]
+}
+
+///|
+test "log-log interpolation and raw-cycle Miner sum" {
+  let c = @app.extract_cycles([0.0, 2.0, 0.0]).unwrap()
+  let report = @app.calculate_damage(c, curve()).unwrap()
+  assert_true(report.total_damage is Some(d) && d.is_close(0.0001))
+  let middle = @app.extract_cycles([0.0, 2.0 * 10.0.sqrt(), 0.0]).unwrap()
+  let d = @app.calculate_damage(middle, curve()).unwrap()
+  assert_true(d.total_damage is Some(value) && value.is_close(0.001))
+  assert_eq(d.mean_stress_model, "none")
+}
+
+///|
+test "curve endpoints accepted; outside coverage is explicitly incomplete" {
+  let endpoint = @app.calculate_damage(
+    @app.extract_cycles([0.0, 20.0, 0.0]).unwrap(),
+    curve(),
+  ).unwrap()
+  assert_true(endpoint.total_damage is Some(d) && d.is_close(0.01))
+  let outside = @app.calculate_damage(
+    @app.extract_cycles([0.0, 22.0, 0.0]).unwrap(),
+    curve(),
+  ).unwrap()
+  assert_true(outside.total_damage is None)
+  assert_eq(outside.out_of_range_cycles.length(), 2)
+  assert_eq(outside.evaluated_damage, 0.0)
+  assert_true(@app.calculate_damage([], []) is Err(_))
+  assert_true(
+    @app.calculate_damage([], [
+      { amplitude_mpa: 2.0, cycles_to_failure: 10.0, },
+      { amplitude_mpa: 1.0, cycles_to_failure: 20.0, },
+    ])
+    is Err(_),
+  )
+}

@@ -1,0 +1,72 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "gckbbrant/fatigue-spectrum"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn build_spectrum(ArrayView[Cycle], Double) -> Result[Array[SpectrumBin], FatigueError]
+
+pub fn calculate_damage(ArrayView[Cycle], ArrayView[SNPoint]) -> Result[DamageResult, FatigueError]
+
+pub fn extract_cycles(ArrayView[Double]) -> Result[Array[Cycle], FatigueError]
+
+// Errors
+
+// Types and methods
+pub(all) struct Cycle {
+  range_mpa : Double
+  mean_mpa : Double
+  count : Double
+  start_index : Int
+  end_index : Int
+} derive(ToJson)
+pub fn Cycle::to_json(Self) -> Json
+
+pub(all) struct CycleDamage {
+  cycle_index : Int
+  amplitude_mpa : Double
+  mean_mpa : Double
+  count : Double
+  allowable_cycles : Double?
+  damage : Double?
+} derive(ToJson)
+pub fn CycleDamage::to_json(Self) -> Json
+
+pub(all) struct DamageResult {
+  total_damage : Double?
+  evaluated_damage : Double
+  out_of_range_cycles : Array[Int]
+  mean_stress_model : String
+  contributions : Array[CycleDamage]
+} derive(ToJson)
+pub fn DamageResult::to_json(Self) -> Json
+
+pub(all) enum FatigueError {
+  InvalidInput(String)
+  NumericOverflow(String)
+} derive(Eq, ToJson, @debug.Debug)
+pub fn FatigueError::equal(Self, Self) -> Bool
+pub fn FatigueError::not_equal(Self, Self) -> Bool
+pub fn FatigueError::to_json(Self) -> Json
+pub fn FatigueError::to_repr(Self) -> @debug.Repr
+
+pub(all) struct SNPoint {
+  amplitude_mpa : Double
+  cycles_to_failure : Double
+} derive(ToJson, @json.FromJson)
+pub fn SNPoint::from_json(Json, @json.JsonPath) -> Self raise @json.JsonDecodeError
+pub fn SNPoint::to_json(Self) -> Json
+
+pub(all) struct SpectrumBin {
+  lower_range_mpa : Double
+  upper_range_mpa : Double
+  count : Double
+} derive(ToJson)
+pub fn SpectrumBin::to_json(Self) -> Json
+
+// Type aliases
+
+// Traits
