@@ -57,3 +57,51 @@ test "invalid cycle CSV cannot bypass public cycle validation" {
     is Err(_),
   )
 }
+
+///|
+test "measurement columns, quoted notes and explicit unit scales" {
+  let samples = @app.parse_stress_csv(
+    "\u{FEFF}note;Load;Clock\r\n\"sensor; A\"\"x\"\"\";-2000;0\r\n\"sensor B\";5000;1000\r\n\"sensor C\";0;2000\r\n",
+    time_column="Clock",
+    stress_column="Load",
+    time_scale=0.001,
+    stress_scale=0.001,
+    delimiter=";",
+  ).unwrap()
+  assert_eq(samples.length(), 3)
+  assert_eq(samples[1].time_s, 1.0)
+  assert_eq(samples[1].stress_mpa, 5.0)
+  let tabbed = @app.parse_stress_csv(
+    "Clock\tLoad\tnote\n0\t1\t\n1\t2\t\n",
+    time_column="Clock",
+    stress_column="Load",
+    delimiter="\t",
+  ).unwrap()
+  assert_eq(tabbed.length(), 2)
+}
+
+///|
+test "measurement imports reject ambiguous columns and lossy conversion" {
+  for
+    text in [
+      "time_s,stress_mpa,stress_mpa\n0,1,2", "time_s,other\n0,1", "time_s,stress_mpa,note\n0,1",
+      "time_s,stress_mpa\n0,\"1", "time_s,stress_mpa\n0,\"1\"oops",
+    ] {
+    assert_true(@app.parse_stress_csv(text) is Err(_))
+  }
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1e308", stress_scale=1000.0)
+    is Err(_),
+  )
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1e-300", stress_scale=1.0e-100)
+    is Err(_),
+  )
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1", time_scale=0.0) is Err(_),
+  )
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1", stress_column="time_s")
+    is Err(_),
+  )
+}

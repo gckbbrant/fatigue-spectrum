@@ -66,11 +66,42 @@ async fn run() -> Unit {
     @argparse.OptionArg("cycles", about="Write unbinned cycles CSV."),
     @argparse.OptionArg("svg", about="Write stress range spectrum SVG."),
   ]
+  let measurement_options = options[:].to_owned()
+  measurement_options.push(
+    @argparse.OptionArg(
+      "time-column",
+      about="Time column name; default time_s.",
+    ),
+  )
+  measurement_options.push(
+    @argparse.OptionArg(
+      "stress-column",
+      about="Stress column name; default stress_mpa.",
+    ),
+  )
+  measurement_options.push(
+    @argparse.OptionArg(
+      "time-unit",
+      about="Input time unit: s or ms; default s.",
+    ),
+  )
+  measurement_options.push(
+    @argparse.OptionArg(
+      "stress-unit",
+      about="Input stress unit: MPa, kPa or Pa; default MPa.",
+    ),
+  )
+  measurement_options.push(
+    @argparse.OptionArg(
+      "delimiter",
+      about="CSV separator: comma, semicolon or tab.",
+    ),
+  )
   let analyze = @argparse.Command(
     "analyze",
     about="Extract cycles from time_s,stress_mpa CSV.",
     positionals=[@argparse.PositionArg("stress")],
-    options~,
+    options=measurement_options,
   )
   let from_cycles = @argparse.Command(
     "from-cycles",
@@ -129,7 +160,17 @@ async fn run() -> Unit {
   let text = @fs.read_file(input_path).text()
   let mut input_samples : Int? = None
   let cycles = if name == "analyze" {
-    let samples = match @app.parse_stress_csv(text) {
+    let samples = match
+      @app.parse_stress_csv(
+        text,
+        time_column=optional(args.values, "time-column").unwrap_or("time_s"),
+        stress_column=optional(args.values, "stress-column").unwrap_or(
+          "stress_mpa",
+        ),
+        time_scale=input_time_scale(args.values),
+        stress_scale=input_stress_scale(args.values),
+        delimiter=input_delimiter(args.values),
+      ) {
       Ok(value) => value
       Err(error) => fail(@json.to_json(error).stringify())
     }

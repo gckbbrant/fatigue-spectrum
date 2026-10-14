@@ -69,6 +69,28 @@ class SpectrumCLI(unittest.TestCase):
         self.assertEqual(p.returncode, 2, p.stderr)
         self.assertFalse(result.exists())
 
+    def test_measurement_column_mapping_and_units(self):
+        source, result = self.path / "instrument.csv", self.path / "analysis.json"
+        source.write_text('note;Stress;Clock\n"sensor; A";0;0\n"sensor B";30000;1000\n"sensor C";10000;2000\n"sensor D";40000;3000\n"sensor E";0;4000\n', encoding="utf-8")
+        p = self.run_cli("analyze", source, "--time-column", "Clock", "--stress-column", "Stress", "--time-unit", "ms", "--stress-unit", "kPa", "--delimiter", "semicolon", "--sn", "samples/sn.json", "--json", result)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        actual = json.loads(result.read_text(encoding="utf-8"))
+        expected = json.loads((ROOT / "samples/analysis.json").read_text(encoding="utf-8"))
+        for key in ("cycles", "spectrum", "damage"):
+            self.assertEqual(actual[key], expected[key])
+
+    def test_cycle_import_rejects_measurement_only_options(self):
+        p = self.run_cli("from-cycles", "samples/cycles.csv", "--stress-unit", "Pa")
+        self.assertNotEqual(p.returncode, 0)
+
+    def test_unknown_stress_unit_clears_old_result(self):
+        result = self.path / "result.json"
+        result.write_text("old result", encoding="utf-8")
+        p = self.run_cli("analyze", "samples/stress.csv", "--stress-unit", "psi", "--json", result)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("stress-unit", p.stderr)
+        self.assertFalse(result.exists())
+
     def test_input_alias_is_preserved(self):
         source = self.path / "stress.csv"
         original = (ROOT / "samples/stress.csv").read_bytes()
