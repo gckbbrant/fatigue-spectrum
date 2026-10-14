@@ -36,6 +36,14 @@ time_s,stress_mpa
 
 输出 `range_mpa` 为峰谷差，S–N 使用的应力幅为其一半。直方图使用稀疏的 `(lower, upper]` 范围区间，第一箱包含零；SVG 的横轴列出实际占用的箱上界。分箱仅用于展示，损伤始终基于原始循环。
 
+已有循环记录时，可以直接读取本工具导出的 CSV，换用曲线或分箱宽度重新分析，不必再次计数：
+
+```sh
+moon run --target native cmd/main -- from-cycles samples/cycles.csv --sn samples/sn.json --bin-width 20 --json _build/reanalyzed.json
+```
+
+循环 CSV 的表头为 `range_mpa,mean_mpa,count,start_index,end_index`。范围必须有限且非负，均值有限，次数有限且为正；次数可为半循环或累计次数。索引须为非负整数且 `end_index > start_index`。输入的是未分箱循环，不能把直方图箱上界当作原始范围。仅含表头的文件表示空循环谱，与恒值应力导出一致；缺少表头则是输入错误。读取循环 CSV 后仍使用相同的曲线覆盖检查和退出码。循环记录不能还原原始采样数，因此该模式的 JSON 不提供 `input_samples`。
+
 S–N JSON 是点数组：
 
 ```json
@@ -61,7 +69,7 @@ CLI 返回码：0 为所请求计算完成，1 为 S–N 覆盖不足，2 为无
 - `extract_cycles(stress)` 返回未分箱循环或结构化错误。
 - `build_spectrum(cycles, width)` 生成显示用的范围直方图。
 - `calculate_damage(cycles, curve)` 返回逐循环损伤与曲线覆盖情况。
-- `parse_stress_csv`、`cycles_csv` 与 `render_spectrum_svg` 提供文件和图表接口。
+- `parse_stress_csv`、`parse_cycles_csv`、`cycles_csv` 与 `render_spectrum_svg` 提供文件和图表接口。
 
 完整独立示例：[examples/basic/main.mbt](examples/basic/main.mbt)。
 
