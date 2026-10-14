@@ -4,7 +4,7 @@ extern "C" fn exit_process(code : Int) -> Unit = "exit"
 ///|
 struct Report {
   input_file : String
-  input_samples : Int
+  input_samples : Int?
   cycles : Array[@app.Cycle]
   spectrum : Array[@app.SpectrumBin]
   bin_width_mpa : Double
@@ -50,35 +50,51 @@ async fn output_identity(path : String) -> String {
 
 ///|
 async fn run() -> Unit {
+  let options = [
+    @argparse.OptionArg(
+      "bin-width",
+      about="Range bin width in MPa; default 10.",
+    ),
+    @argparse.OptionArg(
+      "sn",
+      about="JSON array of amplitude_mpa,cycles_to_failure points.",
+    ),
+    @argparse.OptionArg(
+      "json",
+      about="Write cycles, spectrum and optional damage JSON.",
+    ),
+    @argparse.OptionArg("cycles", about="Write unbinned cycles CSV."),
+    @argparse.OptionArg("svg", about="Write stress range spectrum SVG."),
+  ]
   let analyze = @argparse.Command(
     "analyze",
     about="Extract cycles from time_s,stress_mpa CSV.",
     positionals=[@argparse.PositionArg("stress")],
-    options=[
-      @argparse.OptionArg(
-        "bin-width",
-        about="Range bin width in MPa; default 10.",
-      ),
-      @argparse.OptionArg(
-        "sn",
-        about="JSON array of amplitude_mpa,cycles_to_failure points.",
-      ),
-      @argparse.OptionArg(
-        "json",
-        about="Write cycles, spectrum and optional damage JSON.",
-      ),
-      @argparse.OptionArg("cycles", about="Write unbinned cycles CSV."),
-      @argparse.OptionArg("svg", about="Write stress range spectrum SVG."),
-    ],
+    options~,
+  )
+  let from_cycles = @argparse.Command(
+    "from-cycles",
+    about="Analyze previously counted, unbinned cycle CSV records.",
+    positionals=[@argparse.PositionArg("cycle-input")],
+    options~,
   )
   let matches = @argparse.Command(
     "fatigue-spectrum",
     about="Rainflow stress spectrum and bounded Miner estimates.",
-    subcommands=[analyze],
+    subcommands=[analyze, from_cycles],
     subcommand_required=true,
   ).parse()
-  guard matches.subcommand is Some((_, args)) else { fail("expected analyze") }
-  let input_path = required(args.values, "stress")
+  guard matches.subcommand is Some((name, args)) else {
+    fail("expected analyze or from-cycles")
+  }
+  let input_path = required(
+    args.values,
+    if name == "analyze" {
+      "stress"
+    } else {
+      "cycle-input"
+    },
+  )
   let sn_path = optional(args.values, "sn")
   let json_path = optional(args.values, "json")
   let cycles_path = optional(args.values, "cycles")
@@ -110,13 +126,23 @@ async fn run() -> Unit {
     Some(text) => @string.from_str(text)
     None => 10.0
   }
-  let samples = match @app.parse_stress_csv(@fs.read_file(input_path).text()) {
-    Ok(value) => value
-    Err(error) => fail(@json.to_json(error).stringify())
-  }
-  let cycles = match @app.extract_cycles(samples.map(fn(s) { s.stress_mpa })) {
-    Ok(value) => value
-    Err(error) => fail(@json.to_json(error).stringify())
+  let text = @fs.read_file(input_path).text()
+  let mut input_samples : Int? = None
+  let cycles = if name == "analyze" {
+    let samples = match @app.parse_stress_csv(text) {
+      Ok(value) => value
+      Err(error) => fail(@json.to_json(error).stringify())
+    }
+    input_samples = Some(samples.length())
+    match @app.extract_cycles(samples.map(fn(s) { s.stress_mpa })) {
+      Ok(value) => value
+      Err(error) => fail(@json.to_json(error).stringify())
+    }
+  } else {
+    match @app.parse_cycles_csv(text) {
+      Ok(value) => value
+      Err(error) => fail(@json.to_json(error).stringify())
+    }
   }
   let spectrum = match @app.build_spectrum(cycles, width) {
     Ok(value) => value
@@ -136,7 +162,7 @@ async fn run() -> Unit {
   }
   let report : Report = {
     input_file: input_path,
-    input_samples: samples.length(),
+    input_samples,
     cycles,
     spectrum,
     bin_width_mpa: width,
@@ -165,8 +191,11 @@ async fn run() -> Unit {
     }
     @fs.write_file(path, svg, create_mode=@fs.CreateOrTruncate)
   }
+  if input_samples is Some(count) {
+    @stdio.stdout.write("Samples: \{count}; ")
+  }
   @stdio.stdout.write(
-    "Samples: \{samples.length()}; cycle records: \{cycles.length()}; occupied range bins: \{spectrum.length()}\n",
+    "Cycle records: \{cycles.length()}; occupied range bins: \{spectrum.length()}\n",
   )
   if damage is Some(result) {
     match result.total_damage {
