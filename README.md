@@ -19,7 +19,7 @@ moon run --target native cmd/main -- analyze samples/stress.csv --sn samples/sn.
 
 ## 输入与计数约定
 
-应力 CSV 使用未加引号的两列，单位固定为 MPa：
+默认读取名为 `time_s`、`stress_mpa` 的应力列，输入单位为 s、MPa：
 
 ```csv
 time_s,stress_mpa
@@ -31,6 +31,14 @@ time_s,stress_mpa
 ```
 
 数值必须有限，时间严格递增；接受 UTF-8 BOM、CRLF 和空行。应力可以为负。原始索引从 0 开始，保留 plateau 结束时的位置，不因转折点筛选重新编号。
+
+多列采集文件可直接指定列、单位和分隔符。以下 [instrument-stress.tsv](samples/instrument-stress.tsv) 是 ms／kPa 的合成示例，换算后与 `samples/stress.csv` 相同：
+
+```sh
+moon run --target native cmd/main -- analyze samples/instrument-stress.tsv --time-column Clock --stress-column Stress --time-unit ms --stress-unit kPa --delimiter tab --sn samples/sn.json --json _build/imported-analysis.json
+```
+
+时间单位支持 `s`、`ms`，应力单位支持 `MPa`、`kPa`、`Pa`；分隔符为 `comma`、`semicolon`、`tab`。单位由参数指定，列名用于定位。每条记录占一行；引号内可包含分隔符，双引号以两个双引号转义。其他列可为空或包含文字，但每行字段数须匹配表头，选定列名须唯一。数值使用小数点，换算溢出或非零值变成零会报错。这些输入选项仅用于 `analyze`；`from-cycles` 继续读取固定单位 MPa 的未分箱循环。
 
 计数采用三点雨流方法，残余保留为半循环，不自动假定输入首尾周期闭合。两点非恒值输入产生一个半循环；恒值输入不产生零幅循环。应力历史的采样质量由数据提供者负责，计数工具不恢复缺失的载荷峰值。
 
@@ -70,6 +78,8 @@ CLI 返回码：0 为所请求计算完成，1 为 S–N 覆盖不足，2 为无
 - `build_spectrum(cycles, width)` 生成显示用的范围直方图。
 - `calculate_damage(cycles, curve)` 返回逐循环损伤与曲线覆盖情况。
 - `parse_stress_csv`、`parse_cycles_csv`、`cycles_csv` 与 `render_spectrum_svg` 提供文件和图表接口。
+
+`parse_stress_csv` 的可选参数 `time_column`、`stress_column`、`delimiter` 可选择测量列；`time_scale`、`stress_scale` 将输入乘到 s、MPa，默认均为 1。库调用者依据输入单位提供有限正比例即可复用同一解析过程。
 
 完整独立示例：[examples/basic/main.mbt](examples/basic/main.mbt)。
 
