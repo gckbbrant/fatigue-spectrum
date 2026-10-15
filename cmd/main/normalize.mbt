@@ -5,13 +5,16 @@ struct InputSummary {
   time_end_s : Double
   minimum_stress_mpa : Double
   maximum_stress_mpa : Double
+  source_format : InputFormat
+  canonical_format : InputFormat
 } derive(ToJson)
 
 ///|
 async fn read_measurements(
   path : String,
-  values : Map[String, Array[String]],
+  format : InputFormat,
 ) -> Array[@app.StressSample] {
+  let values = format.options()
   match
     @app.parse_stress_csv(
       @fs.read_file(path).text(),
@@ -53,8 +56,13 @@ async fn normalize_input(values : Map[String, Array[String]]) -> Unit {
   let input = required(values, "input")
   let csv_path = optional(values, "csv")
   let json_path = optional(values, "json")
-  prepare_outputs([input], [csv_path, json_path].filter_map(fn(x) { x }))
-  let samples = read_measurements(input, values)
+  let inputs = [input]
+  if optional(values, "input-config") is Some(path) {
+    inputs.push(path)
+  }
+  prepare_outputs(inputs, [csv_path, json_path].filter_map(fn(x) { x }))
+  let format = measurement_format(values)
+  let samples = read_measurements(input, format)
   let csv = match @app.stress_csv(samples) {
     Ok(value) => value
     Err(error) => fail(@json.to_json(error).stringify())
@@ -71,6 +79,8 @@ async fn normalize_input(values : Map[String, Array[String]]) -> Unit {
     time_end_s: samples[samples.length() - 1].time_s,
     minimum_stress_mpa: minimum,
     maximum_stress_mpa: maximum,
+    source_format: format,
+    canonical_format: format_from_values({}),
   }
   if csv_path is Some(path) {
     @fs.write_file(path, csv, create_mode=CreateOrTruncate)

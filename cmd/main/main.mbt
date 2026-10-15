@@ -91,6 +91,9 @@ async fn run() -> Unit {
   if sn_path is Some(path) {
     inputs.push(path)
   }
+  if optional(args.values, "input-config") is Some(path) {
+    inputs.push(path)
+  }
   let outputs = [json_path, cycles_path, svg_path].filter_map(fn(x) { x })
   prepare_outputs(inputs, outputs)
   let width : Double = match optional(args.values, "bin-width") {
@@ -99,7 +102,8 @@ async fn run() -> Unit {
   }
   let mut input_samples : Int? = None
   let cycles = if name == "analyze" {
-    let samples = read_measurements(input_path, args.values)
+    let format = measurement_format(args.values)
+    let samples = read_measurements(input_path, format)
     input_samples = Some(samples.length())
     match @app.extract_cycles(samples.map(fn(s) { s.stress_mpa })) {
       Ok(value) => value

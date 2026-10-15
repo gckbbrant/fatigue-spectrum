@@ -6,6 +6,8 @@ package "gckbbrant/fatigue-spectrum/cmd/main"
 // Errors
 
 // Types and methods
+type InputFormat derive(ToJson)
+
 type InputSummary derive(ToJson)
 
 type Report derive(ToJson)

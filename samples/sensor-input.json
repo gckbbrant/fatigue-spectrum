@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "stress",
+  "time_column": "Clock",
+  "stress_column": "Bridge",
+  "time_unit": "ms",
+  "stress_unit": "MPa",
+  "delimiter": "semicolon",
+  "skip_rows": 1,
+  "decimal_separator": "comma",
+  "stress_zero": 2.5,
+  "stress_gain": -20
+}

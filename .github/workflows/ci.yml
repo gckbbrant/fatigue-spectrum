@@ -19,7 +19,9 @@ jobs:
           moon test --target native
           moon test --target js
       - name: Test the native command line
-        run: python3 tests/test_cli.py
+        run: |
+          python3 tests/test_cli.py
+          python3 tests/test_input_config.py
       - name: Compare rainflow cycles
         run: |
           python3 -m venv _build/reference-env
