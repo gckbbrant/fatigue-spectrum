@@ -38,7 +38,7 @@ time_s,stress_mpa
 moon run --target native cmd/main -- analyze samples/instrument-stress.tsv --time-column Clock --stress-column Stress --time-unit ms --stress-unit kPa --delimiter tab --sn samples/sn.json --json _build/imported-analysis.json
 ```
 
-时间单位支持 `s`、`ms`，应力单位支持 `MPa`、`kPa`、`Pa`；分隔符为 `comma`、`semicolon`、`tab`。单位由参数指定，列名用于定位。每条记录占一行；引号内可包含分隔符，双引号以两个双引号转义。其他列可为空或包含文字，但每行字段数须匹配表头，选定列名须唯一。数值使用小数点，换算溢出或非零值变成零会报错。这些输入选项仅用于 `analyze`；`from-cycles` 继续读取固定单位 MPa 的未分箱循环。
+时间单位支持 `s`、`ms`，应力单位支持 `MPa`、`kPa`、`Pa`；分隔符为 `comma`、`semicolon`、`tab`。单位由参数指定，列名用于定位。每条记录占一行；引号内可包含分隔符，双引号以两个双引号转义。其他列可为空或包含文字，但每行字段数须匹配表头，选定列名须唯一。数值使用小数点，换算溢出或非零值变成零会报错。这些输入选项用于 `analyze` 和 `normalize`；`from-cycles` 继续读取固定单位 MPa 的未分箱循环。
 
 含采集说明行或小数逗号的文件可显式导入。例如 [logger-stress.csv](samples/logger-stress.csv) 是含两行说明、ms 时间和 kPa 应力的合成示例：
 
@@ -46,7 +46,20 @@ moon run --target native cmd/main -- analyze samples/instrument-stress.tsv --tim
 moon run --target native cmd/main -- analyze samples/logger-stress.csv --time-column Clock --stress-column Stress --time-unit ms --stress-unit kPa --delimiter semicolon --skip-rows 2 --decimal-separator comma --sn samples/sn.json --json _build/logger-analysis.json
 ```
 
-`--skip-rows` 是表头前的物理行数，包含空行，默认 0；错误信息保留原文件行号。`--decimal-separator` 默认为 `dot`，可指定 `comma`；小数逗号配合分号、制表符或带引号字段使用。逗号模式下 `1,25` 解析为 1.25；混用小数点、多个小数逗号和数字分组会报错。仍要求时间严格递增、数值有限。这两个选项也仅用于 `analyze`。
+`--skip-rows` 是表头前的物理行数，包含空行，默认 0；错误信息保留原文件行号。`--decimal-separator` 默认为 `dot`，可指定 `comma`；小数逗号配合分号、制表符或带引号字段使用。逗号模式下 `1,25` 解析为 1.25；混用小数点、多个小数逗号和数字分组会报错。仍要求时间严格递增、数值有限。这两个选项同样用于 `analyze` 和 `normalize`。
+
+### 保存可反复使用的标准应力输入
+
+`normalize` 使用相同导入选项，不需要 S–N 曲线，也不提取循环。先确认采集记录，再用标准文件反复分析：
+
+```sh
+moon run --target native cmd/main -- normalize samples/logger-stress.csv --time-column Clock --stress-column Stress --time-unit ms --stress-unit kPa --delimiter semicolon --skip-rows 2 --decimal-separator comma --csv _build/normalized-stress.csv --json _build/stress-summary.json
+moon run --target native cmd/main -- analyze _build/normalized-stress.csv --sn samples/sn.json --json _build/normalized-analysis.json
+```
+
+合成示例得到 5 个样本、时间 0 至 4 s、应力 0 至 40 MPa，标准文件与 `samples/stress.csv` 数值相同。`--csv` 保存 `time_s,stress_mpa`；`--json` 保存 `input_samples`、`time_start_s`、`time_end_s`、`minimum_stress_mpa`、`maximum_stress_mpa`。两项输出均可省略，只打印摘要；指定输出的父目录须已存在。规范化保留全部样本、时间值、顺序及负应力，不平移时间、不滤波、不校准，只舍去非选定列。再次分析标准文件时使用默认导入参数，避免重复换算单位。
+
+通过规范化表示输入格式与数值有效，不代表采样充分或曲线适用。输入覆盖保护、失败清除旧输出和错误码 2 与分析命令一致。`normalize` 不接受 `--sn`、`--cycles` 等分析选项。
 
 计数采用三点雨流方法，残余保留为半循环，不自动假定输入首尾周期闭合。两点非恒值输入产生一个半循环；恒值输入不产生零幅循环。应力历史的采样质量由数据提供者负责，计数工具不恢复缺失的载荷峰值。
 
@@ -85,11 +98,13 @@ CLI 返回码：0 为所请求计算完成，1 为 S–N 覆盖不足，2 为无
 - `extract_cycles(stress)` 返回未分箱循环或结构化错误。
 - `build_spectrum(cycles, width)` 生成显示用的范围直方图。
 - `calculate_damage(cycles, curve)` 返回逐循环损伤与曲线覆盖情况。
-- `parse_stress_csv`、`parse_cycles_csv`、`cycles_csv` 与 `render_spectrum_svg` 提供文件和图表接口。
+- `parse_stress_csv`、`stress_csv`、`parse_cycles_csv`、`cycles_csv` 与 `render_spectrum_svg` 提供文件和图表接口。
 
 `parse_stress_csv` 的可选参数 `time_column`、`stress_column`、`delimiter` 可选择测量列；`time_scale`、`stress_scale` 将输入乘到 s、MPa，默认均为 1。库调用者依据输入单位提供有限正比例即可复用同一解析过程。
 
 可选参数 `skip_rows`、`decimal_comma` 分别控制跳过的物理行数和小数逗号，默认 0、false，与命令行共享实现。
+
+`stress_csv(samples)` 将公开的 `StressSample` 数组导出为标准应力 CSV，保留负应力和恒值段；空数组、非有限数值和不递增时间返回错误。
 
 完整独立示例：[examples/basic/main.mbt](examples/basic/main.mbt)。
 
