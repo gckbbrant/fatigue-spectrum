@@ -1,0 +1,29 @@
+{
+  "input_samples": 5,
+  "time_start_s": 0,
+  "time_end_s": 4,
+  "minimum_stress_mpa": 0,
+  "maximum_stress_mpa": 40,
+  "source_format": {
+    "time_column": "Clock",
+    "stress_column": "Bridge",
+    "time_unit": "ms",
+    "stress_unit": "MPa",
+    "delimiter": "semicolon",
+    "skip_rows": 1,
+    "decimal_separator": "comma",
+    "stress_zero": 2.5,
+    "stress_gain": -20
+  },
+  "canonical_format": {
+    "time_column": "time_s",
+    "stress_column": "stress_mpa",
+    "time_unit": "s",
+    "stress_unit": "MPa",
+    "delimiter": "comma",
+    "skip_rows": 0,
+    "decimal_separator": "dot",
+    "stress_zero": 0,
+    "stress_gain": 1
+  }
+}

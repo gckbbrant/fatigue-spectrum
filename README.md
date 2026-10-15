@@ -78,6 +78,22 @@ moon run --target native cmd/main -- analyze _build/sensor-stress.csv --sn sampl
 
 也可将同一组导入参数直接传给 `analyze`。参数始终使用小数点，即使 CSV 使用小数逗号。各换算步骤出现非有限结果或非零值变成零时，会按原文件行号报错。标准 CSV 已完成标定，后续使用默认参数，避免重复应用增益和零点。工具不自动估计零点、去均值或截断负应力；保留标定后的循环均值，仍不进行平均应力修正。`from-cycles` 不接受这两个测量选项。
 
+### 反复使用采集配置
+
+[sensor-input.json](samples/sensor-input.json)保存前面合成电压通道的导入设置，供 `normalize` 和 `analyze` 共用：
+
+```sh
+moon run --target native cmd/main -- normalize samples/sensor-stress.csv --input-config samples/sensor-input.json --csv _build/preset-stress.csv --json _build/preset-summary.json
+moon run --target native cmd/main -- analyze samples/sensor-stress.csv --input-config samples/sensor-input.json --sn samples/sn.json --json _build/preset-direct.json
+moon run --target native cmd/main -- analyze _build/preset-stress.csv --sn samples/sn.json --json _build/preset-reused.json
+```
+
+直接分析与标准 CSV 复用的循环、谱和损伤相同。第三行使用标准文件的默认格式，不再传原始配置。只调整一项时可追加 `--stress-gain -10`，其余设置继续来自输入配置。
+
+输入配置必须包含 `schema_version: 1`、`kind: "stress"`。可选字段为 `time_column`、`stress_column`、`time_unit`、`stress_unit`、`delimiter`、`skip_rows`、`decimal_separator`、`stress_zero`、`stress_gain`，含义与同名选项一致。省略项采用现有默认值，显式命令行参数优先。配置仅含这些标量字段，不包含输入/输出路径、S–N 曲线或嵌套配置；未知键、重复键（包括转义后同名）、错误类型、错误版本或 kind 都会报错。版本号和 `skip_rows` 使用整数字面量，不接受小数或指数写法；非零标定数值下溢成零也会报错。配置自身的非法值不能用覆盖参数隐藏，输出也不能覆盖配置文件。`from-cycles` 不接受 `--input-config`。
+
+规范化 JSON 保留原有统计字段，追加 `source_format` 和 `canonical_format`。[实际生成的摘要](samples/sensor-summary.json)记录生效的原列、单位、数值格式与零点/增益，以及标准 CSV 对应的 s/MPa、逗号分隔、小数点、零点 0、增益 1。两组信息来自本次转换使用的参数，避免事后重读配置导致记录偏离。摘要不会自动应用配置或触发二次标定。
+
 计数采用三点雨流方法，残余保留为半循环，不自动假定输入首尾周期闭合。两点非恒值输入产生一个半循环；恒值输入不产生零幅循环。应力历史的采样质量由数据提供者负责，计数工具不恢复缺失的载荷峰值。
 
 输出 `range_mpa` 为峰谷差，S–N 使用的应力幅为其一半。直方图使用稀疏的 `(lower, upper]` 范围区间，第一箱包含零；SVG 的横轴列出实际占用的箱上界。分箱仅用于展示，损伤始终基于原始循环。
@@ -141,6 +157,7 @@ moon check --target native
 moon test --target native
 moon test --target js
 python tests/test_cli.py
+python tests/test_input_config.py
 ```
 
 雨流参考对照需要可选的 Python 依赖：

@@ -65,7 +65,7 @@ class SpectrumCLI(unittest.TestCase):
         p = self.run_cli("normalize", "samples/logger-stress.csv", "--time-column", "Clock", "--stress-column", "Stress", "--time-unit", "ms", "--stress-unit", "kPa", "--delimiter", "semicolon", "--skip-rows", "2", "--decimal-separator", "comma", "--csv", canonical, "--json", summary)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(canonical.read_text(encoding="utf-8"), (ROOT / "samples/stress.csv").read_text(encoding="utf-8"))
-        self.assertEqual(json.loads(summary.read_text(encoding="utf-8")), {"input_samples": 5, "time_start_s": 0, "time_end_s": 4, "minimum_stress_mpa": 0, "maximum_stress_mpa": 40})
+        self.assertEqual({k: v for k, v in json.loads(summary.read_text(encoding="utf-8")).items() if k not in ("source_format", "canonical_format")}, {"input_samples": 5, "time_start_s": 0, "time_end_s": 4, "minimum_stress_mpa": 0, "maximum_stress_mpa": 40})
         p = self.run_cli("analyze", canonical, "--sn", "samples/sn.json", "--json", report)
         self.assertEqual(p.returncode, 0, p.stderr)
         actual = json.loads(report.read_text(encoding="utf-8"))
