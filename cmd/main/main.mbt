@@ -97,6 +97,18 @@ async fn run() -> Unit {
       about="CSV separator: comma, semicolon or tab.",
     ),
   )
+  measurement_options.push(
+    @argparse.OptionArg(
+      "skip-rows",
+      about="Physical preamble lines before header; default 0.",
+    ),
+  )
+  measurement_options.push(
+    @argparse.OptionArg(
+      "decimal-separator",
+      about="Input decimal separator: dot or comma; default dot.",
+    ),
+  )
   let analyze = @argparse.Command(
     "analyze",
     about="Extract cycles from time_s,stress_mpa CSV.",
@@ -170,6 +182,8 @@ async fn run() -> Unit {
         time_scale=input_time_scale(args.values),
         stress_scale=input_stress_scale(args.values),
         delimiter=input_delimiter(args.values),
+        skip_rows=input_skip_rows(args.values),
+        decimal_comma=input_decimal_comma(args.values),
       ) {
       Ok(value) => value
       Err(error) => fail(@json.to_json(error).stringify())

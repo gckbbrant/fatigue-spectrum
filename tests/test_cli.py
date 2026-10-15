@@ -79,9 +79,29 @@ class SpectrumCLI(unittest.TestCase):
         for key in ("cycles", "spectrum", "damage"):
             self.assertEqual(actual[key], expected[key])
 
+    def test_preamble_and_decimal_comma_match_canonical_stress(self):
+        source, result = self.path / "locale.csv", self.path / "analysis.json"
+        source.write_text('instrument export\nsep=;\nClock;Stress\n0,0;0,0\n1000,0;30000,0\n2000,0;10000,0\n3000,0;40000,0\n4000,0;0,0\n', encoding="utf-8")
+        p = self.run_cli("analyze", source, "--time-column", "Clock", "--stress-column", "Stress", "--time-unit", "ms", "--stress-unit", "kPa", "--delimiter", "semicolon", "--skip-rows", "2", "--decimal-separator", "comma", "--sn", "samples/sn.json", "--json", result)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        actual = json.loads(result.read_text(encoding="utf-8"))
+        expected = json.loads((ROOT / "samples/analysis.json").read_text(encoding="utf-8"))
+        for key in ("cycles", "spectrum", "damage"):
+            self.assertEqual(actual[key], expected[key])
+
+    def test_bad_decimal_after_preamble_keeps_source_line_number(self):
+        source, result = self.path / "invalid.csv", self.path / "result.json"
+        source.write_text('instrument export\nsep=;\ntime_s;stress_mpa\n0;1.234,5\n', encoding="utf-8")
+        result.write_text("stale", encoding="utf-8")
+        p = self.run_cli("analyze", source, "--delimiter", "semicolon", "--skip-rows", "2", "--decimal-separator", "comma", "--json", result)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("line 4", p.stderr)
+        self.assertFalse(result.exists())
+
     def test_cycle_import_rejects_measurement_only_options(self):
-        p = self.run_cli("from-cycles", "samples/cycles.csv", "--stress-unit", "Pa")
-        self.assertNotEqual(p.returncode, 0)
+        for key, value in (("--stress-unit", "Pa"), ("--skip-rows", "2"), ("--decimal-separator", "comma")):
+            p = self.run_cli("from-cycles", "samples/cycles.csv", key, value)
+            self.assertNotEqual(p.returncode, 0)
 
     def test_unknown_stress_unit_clears_old_result(self):
         result = self.path / "result.json"

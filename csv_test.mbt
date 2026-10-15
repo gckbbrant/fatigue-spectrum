@@ -105,3 +105,48 @@ test "measurement imports reject ambiguous columns and lossy conversion" {
     is Err(_),
   )
 }
+
+///|
+test "explicit preamble skipping and decimal comma keep original line numbers" {
+  let result = @app.parse_stress_csv(
+    "Instrument export\nsep=;\nClock;Value\n0,0;0,0\n1000,5;1,25\n",
+    time_column="Clock",
+    stress_column="Value",
+    delimiter=";",
+    time_scale=0.001,
+    skip_rows=2,
+    decimal_comma=true,
+  ).unwrap()
+  assert_eq(result.length(), 2)
+  assert_true(result[1].time_s.is_close(1.0005))
+  assert_eq(result[1].stress_mpa, 1.25)
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1", skip_rows=-1) is Err(_),
+  )
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1", skip_rows=9) is Err(_),
+  )
+}
+
+///|
+test "decimal comma never guesses mixed decimal or grouping formats" {
+  for value in ["1.25", "1.234,5", "1,234,5"] {
+    assert_true(
+      @app.parse_stress_csv(
+        "time_s;stress_mpa\n0;" + value,
+        delimiter=";",
+        decimal_comma=true,
+      )
+      is Err(_),
+    )
+  }
+  let broken = @app.parse_stress_csv(
+    "metadata\nmetadata\ntime_s;stress_mpa\n0;bad",
+    delimiter=";",
+    skip_rows=2,
+    decimal_comma=true,
+  )
+  assert_true(
+    broken is Err(@app.InvalidInput(message)) && message.contains("line 4"),
+  )
+}
