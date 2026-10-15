@@ -31,24 +31,6 @@ fn optional(values : Map[String, Array[String]], key : String) -> String? raise 
 }
 
 ///|
-async fn output_identity(path : String) -> String {
-  if @fs.exists(path) {
-    return @fs.realpath(path).replace(old="\\", new="/").to_lower()
-  }
-  let parts = path.replace(old="\\", new="/").split("/").collect()
-  let name = parts[parts.length() - 1]
-  if name.is_empty() {
-    fail("output must name a file")
-  }
-  let parent = if parts.length() == 1 {
-    "."
-  } else {
-    parts[:parts.length() - 1].join("/")
-  }
-  (@fs.realpath(parent).replace(old="\\", new="/") + "/" + name.to_owned()).to_lower()
-}
-
-///|
 async fn run() -> Unit {
   let options = [
     @argparse.OptionArg(
@@ -66,54 +48,13 @@ async fn run() -> Unit {
     @argparse.OptionArg("cycles", about="Write unbinned cycles CSV."),
     @argparse.OptionArg("svg", about="Write stress range spectrum SVG."),
   ]
-  let measurement_options = options[:].to_owned()
-  measurement_options.push(
-    @argparse.OptionArg(
-      "time-column",
-      about="Time column name; default time_s.",
-    ),
-  )
-  measurement_options.push(
-    @argparse.OptionArg(
-      "stress-column",
-      about="Stress column name; default stress_mpa.",
-    ),
-  )
-  measurement_options.push(
-    @argparse.OptionArg(
-      "time-unit",
-      about="Input time unit: s or ms; default s.",
-    ),
-  )
-  measurement_options.push(
-    @argparse.OptionArg(
-      "stress-unit",
-      about="Input stress unit: MPa, kPa or Pa; default MPa.",
-    ),
-  )
-  measurement_options.push(
-    @argparse.OptionArg(
-      "delimiter",
-      about="CSV separator: comma, semicolon or tab.",
-    ),
-  )
-  measurement_options.push(
-    @argparse.OptionArg(
-      "skip-rows",
-      about="Physical preamble lines before header; default 0.",
-    ),
-  )
-  measurement_options.push(
-    @argparse.OptionArg(
-      "decimal-separator",
-      about="Input decimal separator: dot or comma; default dot.",
-    ),
-  )
+  let analyze_options = measurement_options()
+  analyze_options.append(options)
   let analyze = @argparse.Command(
     "analyze",
     about="Extract cycles from time_s,stress_mpa CSV.",
     positionals=[@argparse.PositionArg("stress")],
-    options=measurement_options,
+    options=analyze_options,
   )
   let from_cycles = @argparse.Command(
     "from-cycles",
@@ -124,11 +65,15 @@ async fn run() -> Unit {
   let matches = @argparse.Command(
     "fatigue-spectrum",
     about="Rainflow stress spectrum and bounded Miner estimates.",
-    subcommands=[analyze, from_cycles],
+    subcommands=[analyze, from_cycles, normalization_command()],
     subcommand_required=true,
   ).parse()
   guard matches.subcommand is Some((name, args)) else {
-    fail("expected analyze or from-cycles")
+    fail("expected analyze, from-cycles or normalize")
+  }
+  if name == "normalize" {
+    normalize_input(args.values)
+    return
   }
   let input_path = required(
     args.values,
@@ -142,59 +87,26 @@ async fn run() -> Unit {
   let json_path = optional(args.values, "json")
   let cycles_path = optional(args.values, "cycles")
   let svg_path = optional(args.values, "svg")
-  let input_ids = [
-    @fs.realpath(input_path).replace(old="\\", new="/").to_lower(),
-  ]
+  let inputs = [input_path]
   if sn_path is Some(path) {
-    input_ids.push(@fs.realpath(path).replace(old="\\", new="/").to_lower())
+    inputs.push(path)
   }
   let outputs = [json_path, cycles_path, svg_path].filter_map(fn(x) { x })
-  let output_ids : Array[String] = []
-  for path in outputs {
-    let id = output_identity(path)
-    if input_ids.contains(id) {
-      fail("output must not overwrite an input: \{path}")
-    }
-    if output_ids.contains(id) {
-      fail("output paths must be distinct")
-    }
-    output_ids.push(id)
-  }
-  for path in outputs {
-    if @fs.exists(path) {
-      @fs.remove(path)
-    }
-  }
+  prepare_outputs(inputs, outputs)
   let width : Double = match optional(args.values, "bin-width") {
     Some(text) => @string.from_str(text)
     None => 10.0
   }
-  let text = @fs.read_file(input_path).text()
   let mut input_samples : Int? = None
   let cycles = if name == "analyze" {
-    let samples = match
-      @app.parse_stress_csv(
-        text,
-        time_column=optional(args.values, "time-column").unwrap_or("time_s"),
-        stress_column=optional(args.values, "stress-column").unwrap_or(
-          "stress_mpa",
-        ),
-        time_scale=input_time_scale(args.values),
-        stress_scale=input_stress_scale(args.values),
-        delimiter=input_delimiter(args.values),
-        skip_rows=input_skip_rows(args.values),
-        decimal_comma=input_decimal_comma(args.values),
-      ) {
-      Ok(value) => value
-      Err(error) => fail(@json.to_json(error).stringify())
-    }
+    let samples = read_measurements(input_path, args.values)
     input_samples = Some(samples.length())
     match @app.extract_cycles(samples.map(fn(s) { s.stress_mpa })) {
       Ok(value) => value
       Err(error) => fail(@json.to_json(error).stringify())
     }
   } else {
-    match @app.parse_cycles_csv(text) {
+    match @app.parse_cycles_csv(@fs.read_file(input_path).text()) {
       Ok(value) => value
       Err(error) => fail(@json.to_json(error).stringify())
     }

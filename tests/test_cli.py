@@ -25,6 +25,51 @@ class SpectrumCLI(unittest.TestCase):
     def run_cli(self, *args):
         return subprocess.run([str(self.binary)] + [str(a) for a in args], cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace")
 
+    def test_normalize_logger_can_be_reanalyzed_without_import_options(self):
+        canonical, summary, report = (self.path / n for n in ("stress.csv", "summary.json", "report.json"))
+        p = self.run_cli("normalize", "samples/logger-stress.csv", "--time-column", "Clock", "--stress-column", "Stress", "--time-unit", "ms", "--stress-unit", "kPa", "--delimiter", "semicolon", "--skip-rows", "2", "--decimal-separator", "comma", "--csv", canonical, "--json", summary)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(canonical.read_text(encoding="utf-8"), (ROOT / "samples/stress.csv").read_text(encoding="utf-8"))
+        self.assertEqual(json.loads(summary.read_text(encoding="utf-8")), {"input_samples": 5, "time_start_s": 0, "time_end_s": 4, "minimum_stress_mpa": 0, "maximum_stress_mpa": 40})
+        p = self.run_cli("analyze", canonical, "--sn", "samples/sn.json", "--json", report)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        actual = json.loads(report.read_text(encoding="utf-8"))
+        expected = json.loads((ROOT / "samples/analysis.json").read_text(encoding="utf-8"))
+        for key in ("cycles", "spectrum", "damage"):
+            self.assertEqual(actual[key], expected[key])
+
+    def test_normalize_accepts_negative_stress_without_a_curve(self):
+        source, csv = self.path / "signed.csv", self.path / "stress.csv"
+        source.write_text("time_s,stress_mpa\n-1,-20\n0,10\n", encoding="utf-8")
+        p = self.run_cli("normalize", source, "--csv", csv)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("Samples:", p.stdout)
+        self.assertEqual(csv.read_text(encoding="utf-8"), source.read_text(encoding="utf-8"))
+
+    def test_normalize_preserves_inputs_and_rejects_shared_outputs(self):
+        source = self.path / "stress.csv"
+        original = (ROOT / "samples/stress.csv").read_bytes()
+        source.write_bytes(original)
+        p = self.run_cli("normalize", source, "--csv", str(source.parent) + "/./" + source.name)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertEqual(source.read_bytes(), original)
+        output = self.path / "result.csv"
+        output.write_text("existing", encoding="utf-8")
+        p = self.run_cli("normalize", source, "--csv", output, "--json", output)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertEqual(output.read_text(encoding="utf-8"), "existing")
+
+    def test_normalize_invalid_source_clears_both_old_exports(self):
+        source, csv, summary = (self.path / n for n in ("bad.csv", "stress.csv", "summary.json"))
+        source.write_text("metadata\ntime_s,stress_mpa\n0,0\n0,1\n", encoding="utf-8")
+        for path in (csv, summary):
+            path.write_text("stale", encoding="utf-8")
+        p = self.run_cli("normalize", source, "--skip-rows", "1", "--csv", csv, "--json", summary)
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn("line 4", p.stderr)
+        self.assertFalse(csv.exists())
+        self.assertFalse(summary.exists())
+
     def test_damage_from_unbinned_cycles_is_independent_of_plot_width(self):
         values = []
         for width in ("10", "100"):
