@@ -25,6 +25,41 @@ class SpectrumCLI(unittest.TestCase):
     def run_cli(self, *args):
         return subprocess.run([str(self.binary)] + [str(a) for a in args], cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace")
 
+    def test_sensor_calibration_matches_direct_and_reusable_analysis(self):
+        source, canonical, direct, reused = (self.path / n for n in ("sensor.csv", "stress.csv", "direct.json", "reused.json"))
+        source.write_text("sensor export\nClock;Bridge\n0,0;2,5\n1000,0;1,0\n2000,0;2,0\n3000,0;0,5\n4000,0;2,5\n", encoding="utf-8")
+        options = ["--time-column", "Clock", "--stress-column", "Bridge", "--time-unit", "ms", "--delimiter", "semicolon", "--skip-rows", "1", "--decimal-separator", "comma", "--stress-zero", "2.5", "--stress-gain", "-20"]
+        p = self.run_cli("normalize", source, *options, "--csv", canonical)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(canonical.read_text(encoding="utf-8"), (ROOT / "samples/stress.csv").read_text(encoding="utf-8"))
+        p = self.run_cli("analyze", source, *options, "--sn", "samples/sn.json", "--json", direct)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        p = self.run_cli("analyze", canonical, "--sn", "samples/sn.json", "--json", reused)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        expected = json.loads((ROOT / "samples/analysis.json").read_text(encoding="utf-8"))
+        for report in (direct, reused):
+            data = json.loads(report.read_text(encoding="utf-8"))
+            for key in ("cycles", "spectrum", "damage"):
+                self.assertEqual(data[key], expected[key])
+
+    def test_invalid_calibration_clears_old_export(self):
+        output = self.path / "stress.csv"
+        for option, value in (("--stress-gain", "0"), ("--stress-gain", "nan"), ("--stress-gain", "inf"), ("--stress-zero", "nan"), ("--stress-zero", "inf")):
+            output.write_text("stale", encoding="utf-8")
+            p = self.run_cli("normalize", "samples/stress.csv", option, value, "--csv", output)
+            self.assertEqual(p.returncode, 2, p.stderr)
+            self.assertFalse(output.exists())
+
+    def test_calibration_keeps_signed_stress_and_rejects_cycle_import_options(self):
+        source, canonical = self.path / "sensor.csv", self.path / "stress.csv"
+        source.write_text("time_s,stress_mpa\n0,1\n1,3\n", encoding="utf-8")
+        p = self.run_cli("normalize", source, "--stress-zero", "2", "--stress-gain", "-10", "--csv", canonical)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(canonical.read_text(encoding="utf-8"), "time_s,stress_mpa\n0,10\n1,-10\n")
+        for key, value in (("--stress-zero", "2"), ("--stress-gain", "-10")):
+            p = self.run_cli("from-cycles", "samples/cycles.csv", key, value)
+            self.assertNotEqual(p.returncode, 0)
+
     def test_normalize_logger_can_be_reanalyzed_without_import_options(self):
         canonical, summary, report = (self.path / n for n in ("stress.csv", "summary.json", "report.json"))
         p = self.run_cli("normalize", "samples/logger-stress.csv", "--time-column", "Clock", "--stress-column", "Stress", "--time-unit", "ms", "--stress-unit", "kPa", "--delimiter", "semicolon", "--skip-rows", "2", "--decimal-separator", "comma", "--csv", canonical, "--json", summary)

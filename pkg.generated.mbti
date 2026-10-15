@@ -17,7 +17,7 @@ pub fn extract_cycles(ArrayView[Double]) -> Result[Array[Cycle], FatigueError]
 
 pub fn parse_cycles_csv(StringView) -> Result[Array[Cycle], FatigueError]
 
-pub fn parse_stress_csv(StringView, time_column? : String, stress_column? : String, time_scale? : Double, stress_scale? : Double, delimiter? : String, skip_rows? : Int, decimal_comma? : Bool) -> Result[Array[StressSample], FatigueError]
+pub fn parse_stress_csv(StringView, time_column? : String, stress_column? : String, time_scale? : Double, stress_scale? : Double, delimiter? : String, skip_rows? : Int, decimal_comma? : Bool, stress_zero? : Double, stress_gain? : Double) -> Result[Array[StressSample], FatigueError]
 
 pub fn render_spectrum_svg(ArrayView[SpectrumBin]) -> Result[String, FatigueError]
 

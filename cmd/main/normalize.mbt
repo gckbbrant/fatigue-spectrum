@@ -22,6 +22,8 @@ async fn read_measurements(
       delimiter=input_delimiter(values),
       skip_rows=input_skip_rows(values),
       decimal_comma=input_decimal_comma(values),
+      stress_zero=calibration_number(values, "stress-zero", 0.0),
+      stress_gain=calibration_number(values, "stress-gain", 1.0),
     ) {
     Ok(value) => value
     Err(error) => fail(@json.to_json(error).stringify())
