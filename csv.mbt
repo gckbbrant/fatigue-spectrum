@@ -1,33 +1,79 @@
 ///|
-/// Parse an unquoted two-column MPa CSV with strictly increasing timestamps.
+/// Read selected measurement columns, converting explicitly to canonical units.
+/// Other columns are ignored; every row must match the complete header width.
 pub fn parse_stress_csv(
   text : StringView,
+  time_column? : String = "time_s",
+  stress_column? : String = "stress_mpa",
+  time_scale? : Double = 1.0,
+  stress_scale? : Double = 1.0,
+  delimiter? : String = ",",
 ) -> Result[Array[StressSample], FatigueError] {
+  if time_column.trim().is_empty() ||
+    stress_column.trim().is_empty() ||
+    time_column == stress_column {
+    return Err(
+      InvalidInput("time and value columns must be nonempty and distinct"),
+    )
+  }
+  if !finite(time_scale) ||
+    time_scale <= 0.0 ||
+    !finite(stress_scale) ||
+    stress_scale <= 0.0 {
+    return Err(InvalidInput("unit scales must be finite and positive"))
+  }
   let samples : Array[StressSample] = []
-  let mut header_seen = false
+  let mut columns : (Int, Int)? = None
+  let mut width = 0
   for index, raw in text.split("\n").collect() {
-    let line = raw.trim().strip_prefix("\u{FEFF}").unwrap_or(raw.trim())
-    if line.is_empty() {
+    let raw = raw.strip_suffix("\r").unwrap_or(raw)
+    let line = raw.strip_prefix("\u{FEFF}").unwrap_or(raw)
+    if line.trim().is_empty() {
       continue
     }
-    if !header_seen {
-      if line != "time_s,stress_mpa" {
-        return Err(InvalidInput("CSV header must be time_s,stress_mpa"))
+    let fields = match csv_fields(line, delimiter) {
+      Ok(value) => value
+      Err(error) =>
+        return Err(InvalidInput("CSV line \{index + 1}: \{error.to_repr()}"))
+    }
+    if columns is None {
+      columns = match measurement_columns(fields, time_column, stress_column) {
+        Ok(value) => Some(value)
+        Err(error) => return Err(error)
       }
-      header_seen = true
+      width = fields.length()
       continue
     }
-    guard line.split(",").collect() is [time, stress] else {
-      return Err(InvalidInput("CSV line \{index + 1}: expected two columns"))
+    if fields.length() != width {
+      return Err(
+        InvalidInput("CSV line \{index + 1}: expected \{width} columns"),
+      )
+    }
+    let (time_index, value_index) = columns.unwrap()
+    let time : Double = @string.from_str(fields[time_index]) catch {
+      _ =>
+        return Err(InvalidInput("CSV line \{index + 1}: invalid time number"))
+    }
+    let value : Double = @string.from_str(fields[value_index]) catch {
+      _ =>
+        return Err(InvalidInput("CSV line \{index + 1}: invalid stress number"))
     }
     let sample : StressSample = {
-      time_s: @string.from_str(time.trim()),
-      stress_mpa: @string.from_str(stress.trim()),
-    } catch {
-      _ => return Err(InvalidInput("CSV line \{index + 1}: invalid number"))
+      time_s: time * time_scale,
+      stress_mpa: value * stress_scale,
     }
-    if !finite(sample.time_s) || !finite(sample.stress_mpa) {
+    if !finite(time) || !finite(value) {
       return Err(InvalidInput("CSV line \{index + 1}: values must be finite"))
+    }
+    if !finite(sample.time_s) ||
+      !finite(sample.stress_mpa) ||
+      (time != 0.0 && sample.time_s == 0.0) ||
+      (value != 0.0 && sample.stress_mpa == 0.0) {
+      return Err(
+        InvalidInput(
+          "CSV line \{index + 1}: unit conversion cannot be represented",
+        ),
+      )
     }
     if samples.last() is Some(previous) && sample.time_s <= previous.time_s {
       return Err(
