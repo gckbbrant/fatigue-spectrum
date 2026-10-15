@@ -8,7 +8,12 @@ pub fn parse_stress_csv(
   time_scale? : Double = 1.0,
   stress_scale? : Double = 1.0,
   delimiter? : String = ",",
+  skip_rows? : Int = 0,
+  decimal_comma? : Bool = false,
 ) -> Result[Array[StressSample], FatigueError] {
+  if skip_rows < 0 {
+    return Err(InvalidInput("skip_rows must be nonnegative"))
+  }
   if time_column.trim().is_empty() ||
     stress_column.trim().is_empty() ||
     time_column == stress_column {
@@ -26,6 +31,9 @@ pub fn parse_stress_csv(
   let mut columns : (Int, Int)? = None
   let mut width = 0
   for index, raw in text.split("\n").collect() {
+    if index < skip_rows {
+      continue
+    }
     let raw = raw.strip_suffix("\r").unwrap_or(raw)
     let line = raw.strip_prefix("\u{FEFF}").unwrap_or(raw)
     if line.trim().is_empty() {
@@ -50,11 +58,29 @@ pub fn parse_stress_csv(
       )
     }
     let (time_index, value_index) = columns.unwrap()
-    let time : Double = @string.from_str(fields[time_index]) catch {
+    if decimal_comma &&
+      (fields[time_index].contains(".") || fields[value_index].contains(".")) {
+      return Err(
+        InvalidInput(
+          "CSV line \{index + 1}: decimal-comma input must not contain decimal dots or digit grouping",
+        ),
+      )
+    }
+    let time_text = if decimal_comma {
+      fields[time_index].replace(old=",", new=".")
+    } else {
+      fields[time_index]
+    }
+    let value_text = if decimal_comma {
+      fields[value_index].replace(old=",", new=".")
+    } else {
+      fields[value_index]
+    }
+    let time : Double = @string.from_str(time_text) catch {
       _ =>
         return Err(InvalidInput("CSV line \{index + 1}: invalid time number"))
     }
-    let value : Double = @string.from_str(fields[value_index]) catch {
+    let value : Double = @string.from_str(value_text) catch {
       _ =>
         return Err(InvalidInput("CSV line \{index + 1}: invalid stress number"))
     }
