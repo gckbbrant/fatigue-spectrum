@@ -58,6 +58,16 @@ fn measurement_options() -> Array[@argparse.OptionArg] {
       "stress-unit",
       about="Input stress unit: MPa, kPa or Pa; default MPa.",
     ),
+    OptionArg(
+      "stress-zero",
+      about="Raw channel reading at zero stress; default 0.",
+      allow_hyphen_values=true,
+    ),
+    OptionArg(
+      "stress-gain",
+      about="Declared input stress unit per raw reading, finite and nonzero; default 1.",
+      allow_hyphen_values=true,
+    ),
     OptionArg("delimiter", about="CSV separator: comma, semicolon or tab."),
     OptionArg(
       "skip-rows",
@@ -68,4 +78,19 @@ fn measurement_options() -> Array[@argparse.OptionArg] {
       about="Input decimal separator: dot or comma; default dot.",
     ),
   ]
+}
+
+///|
+fn calibration_number(
+  values : Map[String, Array[String]],
+  key : String,
+  fallback : Double,
+) -> Double raise {
+  match optional(values, key) {
+    None => fallback
+    Some(text) =>
+      @string.from_str(text) catch {
+        _ => fail("\{key} must be a number")
+      }
+  }
 }

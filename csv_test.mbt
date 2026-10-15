@@ -1,4 +1,73 @@
 ///|
+test "sensor zero and signed gain precede stress unit conversion" {
+  let samples = @app.parse_stress_csv(
+    "time_s,stress_mpa\n0,2.5\n1000,1.0\n2000,2.0\n",
+    time_scale=0.001,
+    stress_zero=2.5,
+    stress_gain=-20000.0,
+    stress_scale=0.001,
+  ).unwrap()
+  assert_eq(
+    @app.stress_csv(samples).unwrap(),
+    "time_s,stress_mpa\n0,0\n1,30\n2,10\n",
+  )
+  let signed = @app.parse_stress_csv(
+    "time_s,stress_mpa\n0,0\n1,1\n",
+    stress_zero=2.0,
+    stress_gain=10.0,
+  ).unwrap()
+  let cycle = @app.extract_cycles(signed.map(fn(s) { s.stress_mpa })).unwrap()[0]
+  assert_eq(cycle.range_mpa, 10.0)
+  assert_eq(cycle.mean_mpa, -15.0)
+  assert_eq(
+    @app.parse_stress_csv(
+      "time_s,stress_mpa\n0,2",
+      stress_zero=2.0,
+      stress_gain=1.0e-300,
+    ).unwrap()[0].stress_mpa,
+    0.0,
+  )
+}
+
+///|
+test "sensor calibration rejects invalid parameters and unrepresentable steps" {
+  for value in [@double.infinity, @double.not_a_number] {
+    assert_true(
+      @app.parse_stress_csv("time_s,stress_mpa\n0,1", stress_zero=value)
+      is Err(_),
+    )
+    assert_true(
+      @app.parse_stress_csv("time_s,stress_mpa\n0,1", stress_gain=value)
+      is Err(_),
+    )
+  }
+  assert_true(
+    @app.parse_stress_csv("time_s,stress_mpa\n0,1", stress_gain=0.0) is Err(_),
+  )
+  for
+    (value, zero, gain, scale) in [
+      ("-1e308", 1.0e308, -1.0, 1.0),
+      ("1e308", 0.0, 10.0, 1.0),
+      ("1e-300", 0.0, 1.0e-100, 1.0),
+      ("1e300", 0.0, 1.0e8, 1000.0),
+      ("1e-200", 0.0, 1.0e-100, 1.0e-100),
+    ] {
+    let result = @app.parse_stress_csv(
+      "metadata\ntime_s,stress_mpa\n0," + value,
+      skip_rows=1,
+      stress_zero=zero,
+      stress_gain=gain,
+      stress_scale=scale,
+    )
+    assert_true(
+      result is Err(@app.InvalidInput(message)) &&
+      message.contains("line 3") &&
+      message.contains("cannot be represented"),
+    )
+  }
+}
+
+///|
 test "canonical stress CSV round trips signed and constant samples" {
   let samples : Array[@app.StressSample] = [
     { time_s: -1.0e250, stress_mpa: -1.0e250, },

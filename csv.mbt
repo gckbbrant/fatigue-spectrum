@@ -1,5 +1,6 @@
 ///|
 /// Read selected measurement columns, converting explicitly to canonical units.
+/// Calibration is (reading - stress_zero) * stress_gain, then the unit scale.
 /// Other columns are ignored; every row must match the complete header width.
 pub fn parse_stress_csv(
   text : StringView,
@@ -10,6 +11,8 @@ pub fn parse_stress_csv(
   delimiter? : String = ",",
   skip_rows? : Int = 0,
   decimal_comma? : Bool = false,
+  stress_zero? : Double = 0.0,
+  stress_gain? : Double = 1.0,
 ) -> Result[Array[StressSample], FatigueError] {
   if skip_rows < 0 {
     return Err(InvalidInput("skip_rows must be nonnegative"))
@@ -26,6 +29,13 @@ pub fn parse_stress_csv(
     !finite(stress_scale) ||
     stress_scale <= 0.0 {
     return Err(InvalidInput("unit scales must be finite and positive"))
+  }
+  if !finite(stress_zero) || !finite(stress_gain) || stress_gain == 0.0 {
+    return Err(
+      InvalidInput(
+        "calibration zero must be finite; gain must be finite and nonzero",
+      ),
+    )
   }
   let samples : Array[StressSample] = []
   let mut columns : (Int, Int)? = None
@@ -84,17 +94,28 @@ pub fn parse_stress_csv(
       _ =>
         return Err(InvalidInput("CSV line \{index + 1}: invalid stress number"))
     }
-    let sample : StressSample = {
-      time_s: time * time_scale,
-      stress_mpa: value * stress_scale,
-    }
     if !finite(time) || !finite(value) {
       return Err(InvalidInput("CSV line \{index + 1}: values must be finite"))
+    }
+    let shifted = value - stress_zero
+    let calibrated = if shifted == 0.0 { 0.0 } else { shifted * stress_gain }
+    if !finite(shifted) ||
+      !finite(calibrated) ||
+      (shifted != 0.0 && calibrated == 0.0) {
+      return Err(
+        InvalidInput(
+          "CSV line \{index + 1}: sensor calibration cannot be represented",
+        ),
+      )
+    }
+    let sample : StressSample = {
+      time_s: time * time_scale,
+      stress_mpa: calibrated * stress_scale,
     }
     if !finite(sample.time_s) ||
       !finite(sample.stress_mpa) ||
       (time != 0.0 && sample.time_s == 0.0) ||
-      (value != 0.0 && sample.stress_mpa == 0.0) {
+      (calibrated != 0.0 && sample.stress_mpa == 0.0) {
       return Err(
         InvalidInput(
           "CSV line \{index + 1}: unit conversion cannot be represented",
