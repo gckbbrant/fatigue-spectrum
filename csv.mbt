@@ -184,3 +184,26 @@ pub fn cycles_csv(cycles : ArrayView[Cycle]) -> Result[String, FatigueError] {
   }
   Ok(output.to_string())
 }
+
+///|
+/// Serialize a complete, ordered history in canonical s and MPa units.
+/// Reject empty histories, invalid numbers and non-increasing timestamps.
+pub fn stress_csv(
+  samples : ArrayView[StressSample],
+) -> Result[String, FatigueError] {
+  if samples.is_empty() {
+    return Err(InvalidInput("CSV requires at least one sample"))
+  }
+  let output = StringBuilder()
+  output.write_string("time_s,stress_mpa\n")
+  for i, sample in samples {
+    if !finite(sample.time_s) || !finite(sample.stress_mpa) {
+      return Err(InvalidInput("sample \{i}: invalid stress or time"))
+    }
+    if i > 0 && sample.time_s <= samples[i - 1].time_s {
+      return Err(InvalidInput("sample \{i}: timestamps must strictly increase"))
+    }
+    output.write_string("\{sample.time_s},\{sample.stress_mpa}\n")
+  }
+  Ok(output.to_string())
+}

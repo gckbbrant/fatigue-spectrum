@@ -21,6 +21,8 @@ pub fn parse_stress_csv(StringView, time_column? : String, stress_column? : Stri
 
 pub fn render_spectrum_svg(ArrayView[SpectrumBin]) -> Result[String, FatigueError]
 
+pub fn stress_csv(ArrayView[StressSample]) -> Result[String, FatigueError]
+
 // Errors
 
 // Types and methods

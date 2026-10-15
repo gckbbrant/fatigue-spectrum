@@ -7,4 +7,5 @@ import {
 
 import {
   "gckbbrant/fatigue-spectrum" @app,
+  "moonbitlang/core/double",
 } for "test"

@@ -1,4 +1,46 @@
 ///|
+test "canonical stress CSV round trips signed and constant samples" {
+  let samples : Array[@app.StressSample] = [
+    { time_s: -1.0e250, stress_mpa: -1.0e250, },
+    { time_s: 0.0, stress_mpa: 1.0e-250, },
+    { time_s: 1.0e250, stress_mpa: 1.0e-250, },
+  ]
+  let csv = @app.stress_csv(samples).unwrap()
+  let restored = @app.parse_stress_csv(csv).unwrap()
+  assert_eq(restored.length(), samples.length())
+  for i, sample in samples {
+    assert_eq(restored[i].time_s, sample.time_s)
+    assert_eq(restored[i].stress_mpa, sample.stress_mpa)
+  }
+  assert_eq(
+    @app.stress_csv([{ time_s: 0.0, stress_mpa: -2.0, }]).unwrap(),
+    "time_s,stress_mpa\n0,-2\n",
+  )
+}
+
+///|
+test "canonical stress export validates publicly constructed samples" {
+  assert_true(@app.stress_csv([]) is Err(_))
+  for value in [@double.infinity, @double.not_a_number] {
+    assert_true(
+      @app.stress_csv([{ time_s: 0.0, stress_mpa: value, }]) is Err(_),
+    )
+  }
+  assert_true(
+    @app.stress_csv([{ time_s: @double.infinity, stress_mpa: 0.0, }]) is Err(_),
+  )
+  for time in [0.0, -1.0] {
+    assert_true(
+      @app.stress_csv([
+        { time_s: 0.0, stress_mpa: 0.0, },
+        { time_s: time, stress_mpa: 1.0, },
+      ])
+      is Err(_),
+    )
+  }
+}
+
+///|
 test "stress CSV units, BOM, finite values and time order" {
   let s = @app.parse_stress_csv("\u{FEFF}time_s,stress_mpa\r\n0,-1\r\n1,4\r\n").unwrap()
   assert_eq(s.length(), 2)
