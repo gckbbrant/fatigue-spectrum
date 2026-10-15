@@ -57,9 +57,26 @@ moon run --target native cmd/main -- normalize samples/logger-stress.csv --time-
 moon run --target native cmd/main -- analyze _build/normalized-stress.csv --sn samples/sn.json --json _build/normalized-analysis.json
 ```
 
-合成示例得到 5 个样本、时间 0 至 4 s、应力 0 至 40 MPa，标准文件与 `samples/stress.csv` 数值相同。`--csv` 保存 `time_s,stress_mpa`；`--json` 保存 `input_samples`、`time_start_s`、`time_end_s`、`minimum_stress_mpa`、`maximum_stress_mpa`。两项输出均可省略，只打印摘要；指定输出的父目录须已存在。规范化保留全部样本、时间值、顺序及负应力，不平移时间、不滤波、不校准，只舍去非选定列。再次分析标准文件时使用默认导入参数，避免重复换算单位。
+合成示例得到 5 个样本、时间 0 至 4 s、应力 0 至 40 MPa，标准文件与 `samples/stress.csv` 数值相同。`--csv` 保存 `time_s,stress_mpa`；`--json` 保存 `input_samples`、`time_start_s`、`time_end_s`、`minimum_stress_mpa`、`maximum_stress_mpa`。两项输出均可省略，只打印摘要；指定输出的父目录须已存在。规范化保留全部样本、时间值、顺序及负应力，不平移时间、不滤波，默认不应用标定，只舍去非选定列。再次分析标准文件时使用默认导入参数，避免重复换算单位。
 
 通过规范化表示输入格式与数值有效，不代表采样充分或曲线适用。输入覆盖保护、失败清除旧输出和错误码 2 与分析命令一致。`normalize` 不接受 `--sn`、`--cycles` 等分析选项。
+
+### 显式标定传感器通道
+
+`normalize` 和 `analyze` 接受 `--stress-zero`、`--stress-gain`，默认 0、1：
+
+```text
+stress_mpa = (reading - stress_zero) * stress_gain * unit_scale
+```
+
+零点使用原读数的单位，增益将每单位原读数换到 `--stress-unit` 声明的应力单位，再换算为 MPa。增益可为负但须有限且非零，零点须有限。例如 [sensor-stress.csv](samples/sensor-stress.csv) 是合成电压通道，零点 2.5 V、灵敏度 -20 MPa/V，换算后与 `samples/stress.csv` 数值相同：
+
+```sh
+moon run --target native cmd/main -- normalize samples/sensor-stress.csv --time-column Clock --stress-column Bridge --time-unit ms --stress-unit MPa --delimiter semicolon --skip-rows 1 --decimal-separator comma --stress-zero 2.5 --stress-gain -20 --csv _build/sensor-stress.csv --json _build/sensor-summary.json
+moon run --target native cmd/main -- analyze _build/sensor-stress.csv --sn samples/sn.json --json _build/sensor-analysis.json
+```
+
+也可将同一组导入参数直接传给 `analyze`。参数始终使用小数点，即使 CSV 使用小数逗号。各换算步骤出现非有限结果或非零值变成零时，会按原文件行号报错。标准 CSV 已完成标定，后续使用默认参数，避免重复应用增益和零点。工具不自动估计零点、去均值或截断负应力；保留标定后的循环均值，仍不进行平均应力修正。`from-cycles` 不接受这两个测量选项。
 
 计数采用三点雨流方法，残余保留为半循环，不自动假定输入首尾周期闭合。两点非恒值输入产生一个半循环；恒值输入不产生零幅循环。应力历史的采样质量由数据提供者负责，计数工具不恢复缺失的载荷峰值。
 
@@ -103,6 +120,8 @@ CLI 返回码：0 为所请求计算完成，1 为 S–N 覆盖不足，2 为无
 `parse_stress_csv` 的可选参数 `time_column`、`stress_column`、`delimiter` 可选择测量列；`time_scale`、`stress_scale` 将输入乘到 s、MPa，默认均为 1。库调用者依据输入单位提供有限正比例即可复用同一解析过程。
 
 可选参数 `skip_rows`、`decimal_comma` 分别控制跳过的物理行数和小数逗号，默认 0、false，与命令行共享实现。
+
+可选 `stress_zero`、`stress_gain` 默认为 0、1，先计算 `(reading - stress_zero) * stress_gain`，再乘有限正数 `stress_scale`；增益允许负值。非有限参数、零增益和不可表示的换算返回错误，默认调用保持原有行为。
 
 `stress_csv(samples)` 将公开的 `StressSample` 数组导出为标准应力 CSV，保留负应力和恒值段；空数组、非有限数值和不递增时间返回错误。
 
