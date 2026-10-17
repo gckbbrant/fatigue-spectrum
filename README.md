@@ -106,6 +106,29 @@ moon run --target native cmd/main -- from-cycles samples/cycles.csv --sn samples
 
 循环 CSV 的表头为 `range_mpa,mean_mpa,count,start_index,end_index`。范围必须有限且非负，均值有限，次数有限且为正；次数可为半循环或累计次数。索引须为非负整数且 `end_index > start_index`。输入的是未分箱循环，不能把直方图箱上界当作原始范围。仅含表头的文件表示空循环谱，与恒值应力导出一致；缺少表头则是输入错误。读取循环 CSV 后仍使用相同的曲线覆盖检查和退出码。循环记录不能还原原始采样数，因此该模式的 JSON 不提供 `input_samples`。
 
+### 从搬移后的结果包重新分析
+
+`scripts/reanalyze_cycles.py` 用 Python 标准库组织文件，实际计算仍交给本项目的 native `from-cycles`。独立循环文件不需要 bolt-preload：
+
+```sh
+python scripts/reanalyze_cycles.py --cycles samples/cycles.csv --sn samples/sn.json --bin-width 20 --output _build/reanalyzed-cycles.json
+```
+
+已有 bolt-preload 导出的可搬移结果包时，选定方案即可使用包内捕获的曲线和分箱宽度；也可明确换用新曲线或分箱宽度：
+
+```sh
+python scripts/reanalyze_cycles.py --bundle ../bolt-preload/_build/portable-default --case stiff_joint --output _build/reanalyzed-bundle.json
+python scripts/reanalyze_cycles.py --bundle ../bolt-preload/_build/portable-default --case soft_joint --sn samples/sn.json --bin-width 20 --output _build/reanalyzed-soft.json
+```
+
+先在 bolt-preload 中运行 `python scripts/compare_joints.py --bundle _build/portable-default` 生成该合成示例。整个目录可复制或移动，重分析输入不依赖原采集文件、原临时目录或 bolt-preload 的代码。所有辅助命令路径都相对于调用目录；`--output` 必须显式指定且位于源包之外。独立 `--cycles` 模式须同时提供 `--sn`，默认分箱为 10 MPa；包模式须提供 `--case`，省略 `--sn`/`--bin-width` 时沿用包内值。
+
+辅助命令接受 manifest 的整数 `schema_version: 1`、`kind: "joint-comparison"`、`status: "complete"` 和 `mean_stress_model: "none"`。`files` 每项包含规范相对 path、role、sha256，方案文件另有 case。选定的 `cycles` 角色采用 `range_mpa/mean_mpa: MPa`、`count: cycles`、`start_index/end_index: sample_index`，公共 `sn_curve` 采用 `amplitude_mpa: MPa`、`cycles_to_failure: cycles`。命令核对所有列出的文件哈希，拒绝重复键/角色/路径、未知版本、缺失文件、路径越界和不匹配的单位，不执行清单中的任何命令。哈希验证后捕获的字节直接用于计算，运行中更新源文件不会改变本次分析。
+
+输出保留原生 cycles/spectrum/damage，追加 `reanalysis_source`，记录所选方案、循环和曲线的字节哈希，以及包模式下的 manifest 哈希。包内来源用相对路径表示；覆盖曲线则明确记录新文件来源。改变分箱不会改变原循环或按原循环计算的损伤，不应用原采集预设，也不恢复 input_samples。S–N 覆盖不足仍写出可用结果、返回 1 并省略 total_damage。
+
+辅助命令只在有效结果（返回 0 或覆盖不足的 1）生成后替换指定输出；输入、清单或文件错误返回 2，并保留已有输出。输出不能覆盖独立输入、包内文件或其硬链接。该辅助命令与原生命令失败时清除指定旧输出的行为不同，调用方应同时检查退出码。原结果包始终作为输入保留；哈希只验证文件一致性，不提供测量或材料认证。
+
 S–N JSON 是点数组：
 
 ```json
@@ -158,6 +181,7 @@ moon test --target native
 moon test --target js
 python tests/test_cli.py
 python tests/test_input_config.py
+python tests/test_reanalysis.py
 ```
 
 雨流参考对照需要可选的 Python 依赖：
