@@ -22,6 +22,7 @@ jobs:
         run: |
           python3 tests/test_cli.py
           python3 tests/test_input_config.py
+          python3 tests/test_reanalysis.py
       - name: Compare rainflow cycles
         run: |
           python3 -m venv _build/reference-env
